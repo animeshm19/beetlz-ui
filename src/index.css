@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-dark: #030303;       /* Pitch Black */
+  --color-brand-surface: #0a0a0a;    /* Off-Black for panels */
+  --color-brand-accent: #00F0FF;     /* Piercing Aqua */
+  --color-brand-accent-glow: rgba(0, 240, 255, 0.3);
+  --color-brand-border: #1f1f1f;     /* Subtle gray lines */
+
+  --animate-float: float 8s ease-in-out infinite;
+  --animate-scan: scan 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+body {
+  background-color: var(--color-brand-dark);
+  color: #ffffff;
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow-x: hidden;
+  letter-spacing: -0.01em;
+}
+
+/* Premium, minimal frosted glass */
+.glass-panel {
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--color-brand-border);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes scan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(400px); opacity: 0; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.animate-fade-in {
+  animation: fade-in-up 0.6s reverse forwards; /* simple reverse for unmounting */
+}
