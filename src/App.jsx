@@ -10,9 +10,7 @@ import {
   Crosshair
 } from 'lucide-react';
 
-// ---------------------------------------------------------
 // STYLES & ANIMATIONS
-// ---------------------------------------------------------
 const SolarpunkStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap');
@@ -50,9 +48,7 @@ const SolarpunkStyles = () => (
   `}} />
 );
 
-// ---------------------------------------------------------
 // COMPONENT 1: Solarpunk Geometric Background
-// ---------------------------------------------------------
 const SolarpunkGeometricBackground = () => (
     <div className="fixed inset-0 overflow-hidden pointer-events-none z-0 solarpunk-grid bg-[#020202]">
       <div className="absolute top-[5%] left-[5%] w-[60vw] h-[60vw] bg-[#064e3b]/20 rounded-full blur-[180px] mix-blend-screen animate-[pulse_10s_ease-in-out_infinite_alternate]"></div>
@@ -60,9 +56,9 @@ const SolarpunkGeometricBackground = () => (
     </div>
 );
 
-// ---------------------------------------------------------
-// COMPONENT 2: Dynamic Bounding Box Overlay Engine
-// ---------------------------------------------------------
+
+
+// COMPONENT 2: Dynamic Bounding Box Overlay Engine (Premium Fix)
 const BoundingBoxOverlay = ({ apiData, imgDimensions }) => {
   const [hoveredBox, setHoveredBox] = useState(null);
 
@@ -75,12 +71,27 @@ const BoundingBoxOverlay = ({ apiData, imgDimensions }) => {
         const label = apiData.labels[i] || "object";
         const score = apiData.scores[i] || 0;
         
-        const isDamaged = label.toLowerCase().includes('damage') || label.toLowerCase().includes('dead') || label.toLowerCase().includes('infest');
+        // Color dead/HD red, healthy green
+        const isDamaged = label.toLowerCase().includes('hd') || label.toLowerCase().includes('dead') || label.toLowerCase().includes('damage');
         const boxColor = isDamaged ? '#ef4444' : '#10b981';
 
         const [x1, y1, x2, y2] = box;
         const width = x2 - x1;
         const height = y2 - y1;
+
+        // --- PREMIUM LABEL MATH ---
+        // Calculate font size relative to image height
+        const fontSize = imgDimensions.h * 0.022; 
+        const labelText = `[${label.toUpperCase()}] CONF: ${(score * 100).toFixed(1)}%`;
+        
+        // Estimate text width (monospace fonts are ~0.6x their height in width)
+        const paddingX = imgDimensions.w * 0.01;
+        const estimatedTextWidth = (labelText.length * (fontSize * 0.62)) + (paddingX * 2);
+        const bgHeight = imgDimensions.h * 0.04;
+
+        // Prevent the label from rendering outside the top or right edges of the image
+        const labelX = Math.min(x1, imgDimensions.w - estimatedTextWidth);
+        const labelY = Math.max(y1 - bgHeight - (imgDimensions.h * 0.01), 0);
 
         return (
           <g 
@@ -89,30 +100,54 @@ const BoundingBoxOverlay = ({ apiData, imgDimensions }) => {
             onMouseLeave={() => setHoveredBox(null)} 
             className="cursor-crosshair transition-all duration-300"
           >
+            {/* Glowing shadow filter */}
+            <defs>
+              <filter id={`glow-${i}`}>
+                <feDropShadow dx="0" dy="0" stdDeviation={imgDimensions.w * 0.003} floodColor={boxColor} floodOpacity="0.8"/>
+              </filter>
+            </defs>
+
+            {/* Main Bounding Box */}
             <rect 
               x={x1} y={y1} width={width} height={height} 
-              fill={isHovered ? `${boxColor}33` : "transparent"} 
+              fill={isHovered ? `${boxColor}22` : "transparent"} 
               stroke={boxColor} 
-              strokeWidth={isHovered ? imgDimensions.w * 0.005 : imgDimensions.w * 0.002} 
-              className="transition-all duration-300 shadow-2xl"
+              strokeWidth={isHovered ? imgDimensions.w * 0.004 : imgDimensions.w * 0.002} 
+              filter={isHovered ? `url(#glow-${i})` : 'none'}
+              className="transition-all duration-300"
             />
             
+            {/* Corner Reticles */}
             <path d={`M ${x1},${y1+20} L ${x1},${y1} L ${x1+20},${y1}`} fill="none" stroke={boxColor} strokeWidth={imgDimensions.w * 0.006} />
             <path d={`M ${x2},${y2-20} L ${x2},${y2} L ${x2-20},${y2}`} fill="none" stroke={boxColor} strokeWidth={imgDimensions.w * 0.006} />
 
+            {/* Premium Hover Tag */}
             {isHovered && (
               <g>
-                <rect x={x1} y={y1 - (imgDimensions.h * 0.04)} width={width} height={imgDimensions.h * 0.04} fill={boxColor} />
+                {/* Dark Glass Background */}
+                <rect 
+                  x={labelX} 
+                  y={labelY} 
+                  width={estimatedTextWidth} 
+                  height={bgHeight} 
+                  fill="rgba(10, 10, 10, 0.9)" 
+                  stroke={boxColor}
+                  strokeWidth={imgDimensions.w * 0.0015}
+                  rx={imgDimensions.w * 0.004} // Premium rounded corners
+                  filter={`url(#glow-${i})`}
+                />
+                
+                {/* Single Combined Text Element using <tspan> to guarantee perfect spacing */}
                 <text 
-                  x={x1 + (imgDimensions.w * 0.005)} 
-                  y={y1 - (imgDimensions.h * 0.01)} 
-                  fill="#000000" 
-                  fontSize={imgDimensions.h * 0.025} 
+                  x={labelX + paddingX} 
+                  y={labelY + (bgHeight * 0.72)} 
+                  fill={boxColor} 
+                  fontSize={fontSize} 
                   fontFamily="monospace" 
-                  fontWeight="900"
-                  className="uppercase tracking-widest"
+                  fontWeight="bold"
+                  className="tracking-widest"
                 >
-                  [{label}] CONF: {(score * 100).toFixed(1)}%
+                  [{label.toUpperCase()}] <tspan fill="#ffffff" fontWeight="normal">CONF: {(score * 100).toFixed(1)}%</tspan>
                 </text>
               </g>
             )}
@@ -123,18 +158,13 @@ const BoundingBoxOverlay = ({ apiData, imgDimensions }) => {
   );
 };
 
-// ---------------------------------------------------------
 // COMPONENT 3: Real Operational Matrix
-// ---------------------------------------------------------
 const CanopyInterventionMatrix = ({ totalDetections }) => {
   const [harvestPremium, setHarvestPremium] = useState(300);
   const [qZoneRadius, setQZoneRadius] = useState(15); 
 
-  // If testing with 2 fake boxes, inflate the math slightly so it looks impactful on the dashboard
-  const mathMultiplier = totalDetections <= 2 ? 14 : 1; 
-
-  const infectionLockSavings = (totalDetections * mathMultiplier) * harvestPremium;
-  const preventableLossValue = (totalDetections * mathMultiplier) * 300; 
+  const infectionLockSavings = totalDetections * harvestPremium;
+  const preventableLossValue = totalDetections * 300; 
 
   return (
     <div className="glass-panel w-full h-full border-l-4 border-l-white flex flex-col p-6">
@@ -179,16 +209,14 @@ const CanopyInterventionMatrix = ({ totalDetections }) => {
   );
 };
 
-// ---------------------------------------------------------
 // MAIN APPLICATION
-// ---------------------------------------------------------
 export default function App() {
   const [file, setFile] = useState(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState(null);
   const [imgDimensions, setImgDimensions] = useState({ w: 0, h: 0 });
   const [apiData, setApiData] = useState(null);
   const [status, setStatus] = useState('upload'); 
-  const [isSimulated, setIsSimulated] = useState(false); // Track if we are using the fallback
+  const [apiSource, setApiSource] = useState('Local Dynamic CV'); 
   const fileInputRef = useRef(null);
 
   const labelCounts = apiData?.labels ? apiData.labels.reduce((acc, label) => {
@@ -206,7 +234,6 @@ export default function App() {
     setFile(null);
     setLocalPreviewUrl(null);
     setApiData(null);
-    setIsSimulated(false);
     setStatus('upload');
   };
 
@@ -240,13 +267,17 @@ export default function App() {
     try {
       const base64String = await toBase64(file);
       
-      const response = await fetch("https://my-model-service-576296362651.us-central1.run.app/", {
+      // Hit the Local Python Server for Dynamic Computer Vision
+      const response = await fetch("http://localhost:8000/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64String })
       });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`API Error: ${response.status} - ${errText}`);
+      }
       
       const data = await response.json();
       
@@ -256,29 +287,13 @@ export default function App() {
         scores: data.scores || []
       });
       
-      setIsSimulated(false);
+      setApiSource("Local Dynamic OpenCV");
       setStatus('complete');
       
     } catch (err) {
-      console.warn("Cloud API blocked or timed out. Engaging Pitch-Safe Fallback.", err);
-      
-      // FAIL-SAFE: If the API breaks during the pitch, we fake the response seamlessly.
-      setTimeout(() => {
-        const w = imgDimensions.w || 1000;
-        const h = imgDimensions.h || 1000;
-
-        setApiData({
-          boxes: [
-            [w * 0.25, h * 0.25, w * 0.45, h * 0.50], // Mock HD Box
-            [w * 0.55, h * 0.40, w * 0.75, h * 0.70]  // Mock Healthy Box
-          ],
-          labels: ["damaged", "healthy"],
-          scores: [0.94, 0.98]
-        });
-
-        setIsSimulated(true);
-        setStatus('complete');
-      }, 1800); // 1.8 second delay to make it look like the cloud is "thinking"
+      console.error("API FAILED:", err);
+      alert(`API Connection Failed: ${err.message}. Make sure your Python server is running on port 8000.`);
+      setStatus('preview');
     }
   };
 
@@ -295,7 +310,7 @@ export default function App() {
             <h1 className="text-2xl font-black uppercase tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">Beetlz <span className="text-[#10b981]">Vision</span></h1>
             <div className="flex items-center gap-2 mt-1">
               <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse shadow-[0_0_5px_#10b981]" />
-              <span className="text-[10px] text-gray-500 uppercase tracking-[0.2em]">Engine v3.0 // GCP Hosted</span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-[0.2em]">Engine v3.5 // Dynamic CV Engine</span>
             </div>
           </div>
           
@@ -320,7 +335,7 @@ export default function App() {
               <motion.div key="upload" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="max-w-2xl mx-auto w-full text-center">
                 <div className="mb-12">
                   <h2 className="text-6xl font-black mb-4 tracking-tighter drop-shadow-2xl">Detect. Analyze. <span className="text-shine">Protect.</span></h2>
-                  <p className="text-gray-400 text-xs uppercase tracking-widest font-tech">Holographic Telemetry & PyTorch Inference Engine.</p>
+                  <p className="text-gray-400 text-xs uppercase tracking-widest font-tech">Holographic Telemetry & OpenCV Dynamic Inference.</p>
                 </div>
                 <div 
                   onClick={() => fileInputRef.current.click()}
@@ -331,7 +346,7 @@ export default function App() {
                     <Upload className="text-gray-400 group-hover:text-[#10b981]" size={32} />
                   </div>
                   <span className="text-xl font-bold tracking-tight">Mount Aerial Feed</span>
-                  <span className="text-[10px] text-gray-500 uppercase mt-2 tracking-widest">Connect to Google Cloud Run Model</span>
+                  <span className="text-[10px] text-gray-500 uppercase mt-2 tracking-widest">Connect to Dynamic Local CV Model</span>
                 </div>
               </motion.div>
             )}
@@ -345,7 +360,7 @@ export default function App() {
                 </div>
                 <div className="flex justify-center">
                   <button onClick={runAnalysis} className="px-12 py-5 bg-white text-black font-black uppercase tracking-[0.2em] text-sm rounded-full hover:bg-[#10b981] hover:text-white hover:shadow-[0_0_40px_rgba(16,185,129,0.5)] transition-all duration-300 flex items-center gap-3">
-                    <Zap fill="currentColor" size={18} /> Execute Cloud Inference
+                    <Zap fill="currentColor" size={18} /> Execute Inference Analysis
                   </button>
                 </div>
               </motion.div>
@@ -358,15 +373,16 @@ export default function App() {
                   <div className="absolute inset-0 border-t-4 border-[#10b981] rounded-full animate-spin" />
                   <div className="absolute inset-2 border-r-4 border-white/50 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
                 </div>
-                <h2 className="text-3xl font-black uppercase tracking-[0.3em] text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">Ping Google Cloud Run</h2>
-                <p className="text-[#10b981] text-xs mt-3 font-tech uppercase tracking-widest animate-pulse">Running PyTorch Inference Pipeline...</p>
+                <h2 className="text-3xl font-black uppercase tracking-[0.3em] text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">Scanning Pixel Matrices</h2>
+                <p className="text-[#10b981] text-xs mt-3 font-tech uppercase tracking-widest animate-pulse">Running Dynamic Computer Vision Algorithm...</p>
               </motion.div>
             )}
 
-            {/* 4. COMPLETE STATE (DASHBOARD) */}
+            {/* 4. COMPLETE STATE */}
             {status === 'complete' && (
               <motion.div key="complete" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-6 w-full h-full pb-8">
                 
+                {/* TOP ROW: Visualizer and Matrix */}
                 <div className="flex flex-col lg:flex-row gap-6 w-full lg:h-[500px]">
                   
                   {/* MAIN RENDER WINDOW */}
@@ -378,6 +394,7 @@ export default function App() {
                       <div className="relative w-full h-full bg-[#050505] rounded-xl overflow-hidden flex items-center justify-center">
                          <div className="relative inline-block max-w-full max-h-full">
                             <img src={localPreviewUrl} className="max-w-full max-h-full object-contain block opacity-80" alt="Analyzed Feed" />
+                            {/* REAL DYNAMIC BOXES RENDER HERE */}
                             <BoundingBoxOverlay apiData={apiData} imgDimensions={imgDimensions} />
                          </div>
                       </div>
@@ -389,6 +406,7 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* BOTTOM ROW: Stats and Raw Payload terminal */}
                 <div className="flex flex-col lg:flex-row gap-6 w-full lg:h-[220px]">
                     
                     {/* STATS TILES */}
@@ -413,7 +431,7 @@ export default function App() {
 
                        <div className="glass-panel p-6 flex-1 flex flex-col justify-center items-center text-center border-l-4 border-l-white/50 relative overflow-hidden">
                           <ShieldCheck size={40} className="text-white/10 absolute -bottom-4 -right-4" />
-                          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 w-full text-left">Model Confidence</p>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 w-full text-left">Average Confidence</p>
                           <div className="relative w-24 h-24 mt-2">
                              <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
                                <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
@@ -430,10 +448,10 @@ export default function App() {
                     <div className="w-full lg:w-[55%] glass-panel p-5 flex flex-col border-t-4 border-t-[#10b981]">
                         <div className="flex justify-between items-center mb-3 border-b border-white/10 pb-2">
                            <p className="text-[10px] text-[#10b981] uppercase tracking-[0.2em] flex items-center gap-2 font-bold">
-                             <Terminal size={12} /> {isSimulated ? "Simulated API Telemetry (Fallback)" : "Live API Telemetry Stream"}
+                             <Terminal size={12} /> Live Telemetry Stream
                            </p>
                            <span className="text-[8px] bg-white/10 px-2 py-1 rounded text-white truncate max-w-[150px]">
-                             {isSimulated ? "Local.Instance" : "my-model-service...run.app"}
+                             Source: {apiSource}
                            </span>
                         </div>
                         <div className="flex-grow bg-black/80 rounded-lg p-4 font-tech text-[10px] text-gray-300 overflow-y-auto terminal-scroll">
