@@ -267,8 +267,8 @@ export default function App() {
     try {
       const base64String = await toBase64(file);
       
-      // Hit the Local Python Server for Dynamic Computer Vision
-      const response = await fetch("http://localhost:8000/predict", {
+      // Hit the Cloud Python Server for Dynamic Computer Vision
+      const response = await fetch("https://my-model-service-576296362651.us-central1.run.app/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64String })
