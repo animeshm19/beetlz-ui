@@ -1,16 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
   Zap, 
   Activity, 
-  BarChart3, 
-  FileText, 
-  X, 
-  Maximize2, 
   ShieldCheck, 
-  TrendingUp,
-  RefreshCcw
+  RefreshCcw,
+  Terminal,
+  Crosshair
 } from 'lucide-react';
 
 // ---------------------------------------------------------
@@ -34,18 +31,6 @@ const SolarpunkStyles = () => (
       border-radius: 1.25rem;
     }
 
-    @keyframes scanner {
-      0% { transform: translateY(-100%); opacity: 0; }
-      50% { opacity: 1; }
-      100% { transform: translateY(500%); opacity: 0; }
-    }
-
-    .scan-line {
-      height: 100px;
-      background: linear-gradient(to bottom, transparent, rgba(16, 185, 129, 0.2), transparent);
-      animation: scanner 3s ease-in-out infinite;
-    }
-
     .text-shine {
       background: linear-gradient(120deg, #10b981 20%, #ffffff 40%, #ffffff 60%, #10b981 80%);
       background-size: 200% auto;
@@ -54,158 +39,260 @@ const SolarpunkStyles = () => (
       animation: shine 4s linear infinite;
     }
     @keyframes shine { to { background-position: -200% center; } }
+
+    /* Custom scrollbar for the raw JSON terminal */
+    .terminal-scroll::-webkit-scrollbar { width: 4px; }
+    .terminal-scroll::-webkit-scrollbar-track { background: transparent; }
+    .terminal-scroll::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.5); border-radius: 4px; }
+
+    input[type=range].solarpunk-slider::-webkit-slider-thumb {
+        width: 1.25rem; height: 1.25rem; border-radius: 9999px; background-color: #ffffff; box-shadow: 0 0 15px #ffffff; -webkit-appearance: none; appearance: none; cursor: pointer; border: 2px solid #10b981;
+    }
   `}} />
 );
 
 // ---------------------------------------------------------
-// COMPONENT: Domain Analysis View
+// COMPONENT 1: Solarpunk Geometric Background
 // ---------------------------------------------------------
-const DomainAnalysis = ({ nexusData }) => (
-  <motion.div 
-    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-    className="w-full h-full space-y-12 p-4"
-  >
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-      {nexusData.domain_stats.map((stat, idx) => (
-        <div key={idx} className="space-y-4">
-          <div className="flex justify-between text-[10px] font-tech uppercase tracking-widest text-gray-400">
-            <span>{stat.name}</span>
-            <span>Variance Delta: {Math.abs(stat.larch - stat.spruce).toFixed(2)}</span>
-          </div>
-          <div className="relative h-8 w-full bg-white/5 rounded-lg border border-white/10 overflow-hidden">
-            <motion.div 
-              initial={{ width: 0 }} animate={{ width: `${stat.larch * 100}%` }}
-              className="absolute inset-y-0 left-0 bg-[#10b981]/40 border-r border-[#10b981]"
-            />
-            <motion.div 
-              initial={{ width: 0 }} animate={{ width: `${stat.spruce * 100}%` }}
-              className="absolute inset-y-0 left-0 bg-white/20 border-r border-white/50"
-              style={{ height: '40%', top: '30%' }}
-            />
-          </div>
-          <div className="flex gap-4 text-[9px] font-tech">
-            <div className="flex items-center gap-1.5"><div className="w-2 h-2 bg-[#10b981]" /> LILA (LARCH)</div>
-            <div className="flex items-center gap-1.5"><div className="w-2 h-2 bg-white/50" /> KAGGLE (SPRUCE)</div>
-          </div>
-        </div>
-      ))}
+const SolarpunkGeometricBackground = () => (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0 solarpunk-grid bg-[#020202]">
+      <div className="absolute top-[5%] left-[5%] w-[60vw] h-[60vw] bg-[#064e3b]/20 rounded-full blur-[180px] mix-blend-screen animate-[pulse_10s_ease-in-out_infinite_alternate]"></div>
+      <div className="absolute bottom-[5%] right-[5%] w-[55vw] h-[55vw] bg-[#047857]/10 rounded-full blur-[160px] mix-blend-screen animate-[pulse_15s_ease-in-out_infinite_alternate_reverse]"></div>
     </div>
-
-    <div className="grid grid-cols-2 gap-4">
-      {nexusData.datasets.map(d => (
-        <div key={d.id} className="p-4 bg-white/5 border border-white/10 rounded-xl">
-          <p className="text-[10px] text-[#10b981] font-bold uppercase mb-1">{d.type} Set</p>
-          <p className="text-sm font-bold text-white mb-2">{d.id}</p>
-          <p className="text-[9px] text-gray-500 tracking-wider">SOURCE: {d.source} // DAMAGE: {d.damage_type}</p>
-        </div>
-      ))}
-    </div>
-  </motion.div>
 );
+
+// ---------------------------------------------------------
+// COMPONENT 2: Dynamic Bounding Box Overlay Engine
+// ---------------------------------------------------------
+const BoundingBoxOverlay = ({ apiData, imgDimensions }) => {
+  const [hoveredBox, setHoveredBox] = useState(null);
+
+  if (!apiData || !apiData.boxes || !imgDimensions) return null;
+
+  return (
+    <svg viewBox={`0 0 ${imgDimensions.w} ${imgDimensions.h}`} className="absolute inset-0 w-full h-full object-contain z-30">
+      {apiData.boxes.map((box, i) => {
+        const isHovered = hoveredBox === i;
+        const label = apiData.labels[i] || "object";
+        const score = apiData.scores[i] || 0;
+        
+        // Dynamically color code based on the label returned by your model
+        const isDamaged = label.toLowerCase().includes('damage') || label.toLowerCase().includes('dead') || label.toLowerCase().includes('infest');
+        const boxColor = isDamaged ? '#ef4444' : '#10b981';
+
+        // Extract [xmin, ymin, xmax, ymax]
+        const [x1, y1, x2, y2] = box;
+        const width = x2 - x1;
+        const height = y2 - y1;
+
+        return (
+          <g 
+            key={i} 
+            onMouseEnter={() => setHoveredBox(i)} 
+            onMouseLeave={() => setHoveredBox(null)} 
+            className="cursor-crosshair transition-all duration-300"
+          >
+            {/* The Box */}
+            <rect 
+              x={x1} y={y1} width={width} height={height} 
+              fill={isHovered ? `${boxColor}33` : "transparent"} 
+              stroke={boxColor} 
+              strokeWidth={isHovered ? imgDimensions.w * 0.005 : imgDimensions.w * 0.002} 
+              className="transition-all duration-300 shadow-2xl"
+            />
+            
+            {/* Target Reticles on corners */}
+            <path d={`M ${x1},${y1+20} L ${x1},${y1} L ${x1+20},${y1}`} fill="none" stroke={boxColor} strokeWidth={imgDimensions.w * 0.006} />
+            <path d={`M ${x2},${y2-20} L ${x2},${y2} L ${x2-20},${y2}`} fill="none" stroke={boxColor} strokeWidth={imgDimensions.w * 0.006} />
+
+            {/* Hover Tag */}
+            {isHovered && (
+              <g>
+                <rect x={x1} y={y1 - (imgDimensions.h * 0.04)} width={width} height={imgDimensions.h * 0.04} fill={boxColor} />
+                <text 
+                  x={x1 + (imgDimensions.w * 0.005)} 
+                  y={y1 - (imgDimensions.h * 0.01)} 
+                  fill="#000000" 
+                  fontSize={imgDimensions.h * 0.025} 
+                  fontFamily="monospace" 
+                  fontWeight="900"
+                  className="uppercase tracking-widest"
+                >
+                  [{label}] CONF: {(score * 100).toFixed(1)}%
+                </text>
+              </g>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
+// ---------------------------------------------------------
+// COMPONENT 3: Real Operational Matrix
+// ---------------------------------------------------------
+const CanopyInterventionMatrix = ({ totalDetections }) => {
+  const [harvestPremium, setHarvestPremium] = useState(300);
+  const [qZoneRadius, setQZoneRadius] = useState(15); 
+
+  const infectionLockSavings = totalDetections * harvestPremium;
+  const preventableLossValue = totalDetections * 300; 
+
+  return (
+    <div className="glass-panel w-full h-full border-l-4 border-l-white flex flex-col p-6">
+      <div className="flex justify-between items-start mb-4">
+        <p className="text-[10px] font-tech text-gray-500 uppercase tracking-[0.2em]">Financial Cost Matrix</p>
+        <span className="text-[8px] font-tech text-emerald-300 px-2 py-0.5 rounded bg-[#10b981]/10 border border-[#10b981]/40 animate-pulse">LOCKED</span>
+      </div>
+
+      <div className="flex flex-col flex-grow justify-between">
+        <div className="space-y-5">
+          <p className="text-xs text-gray-400 font-light leading-relaxed border-b border-white/10 pb-4">Analyze operational costs of immediate containment vs baseline depreciation.</p>
+          
+          <div className="w-full">
+              <div className="flex justify-between items-center mb-2 text-[10px] font-tech text-gray-400 uppercase tracking-widest">
+                <span>Immediate Harvest Premium</span>
+                <span className="text-white font-bold">{harvestPremium} <span className="font-light">CAD</span></span>
+              </div>
+              <input type="range" min="100" max="1000" step="50" value={harvestPremium} onChange={(e) => setHarvestPremium(parseInt(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg appearance-none solarpunk-slider" />
+          </div>
+
+          <div className="w-full">
+              <div className="flex justify-between items-center mb-2 text-[10px] font-tech text-gray-400 uppercase tracking-widest">
+                <span>Q-Zone Radius</span>
+                <span className="text-white font-bold">{qZoneRadius} <span className="font-light">Meters</span></span>
+              </div>
+              <input type="range" min="5" max="50" step="1" value={qZoneRadius} onChange={(e) => setQZoneRadius(parseInt(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg appearance-none solarpunk-slider" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mt-6">
+            <div className="bg-black/60 rounded-xl p-4 border border-white/5 flex flex-col justify-center overflow-hidden">
+                <p className="text-[9px] font-tech text-gray-500 uppercase tracking-widest mb-1 truncate">Action Savings</p>
+                <h3 className="text-2xl xl:text-3xl font-black text-[#10b981] truncate" style={{textShadow: '0 0 10px rgba(16,185,129,0.4)'}}>${infectionLockSavings.toLocaleString()}</h3>
+            </div>
+            <div className="bg-black/60 rounded-xl p-4 border border-white/5 flex flex-col justify-center overflow-hidden">
+                <p className="text-[9px] font-tech text-gray-500 uppercase tracking-widest mb-1 truncate">Revenue Risk</p>
+                <h3 className="text-2xl xl:text-3xl font-black text-white truncate" style={{textShadow: '0 0 10px rgba(255,255,255,0.4)'}}>${preventableLossValue.toLocaleString()}</h3>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ---------------------------------------------------------
 // MAIN APPLICATION
 // ---------------------------------------------------------
 export default function App() {
   const [file, setFile] = useState(null);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState(null);
+  const [imgDimensions, setImgDimensions] = useState({ w: 0, h: 0 });
   const [apiData, setApiData] = useState(null);
-  const [nexusData, setNexusData] = useState(null);
-  const [status, setStatus] = useState('upload'); // 'upload', 'preview', 'processing', 'complete'
-  const [showDomain, setShowDomain] = useState(false);
+  const [status, setStatus] = useState('upload'); 
   const fileInputRef = useRef(null);
+
+  // Parse Label Counts dynamically based on what PyTorch returns
+  const labelCounts = apiData?.labels ? apiData.labels.reduce((acc, label) => {
+    acc[label] = (acc[label] || 0) + 1;
+    return acc;
+  }, {}) : {};
+
+  const totalDetections = apiData?.labels?.length || 0;
+  
+  // Calculate Average Confidence
+  const avgConfidence = totalDetections > 0 
+    ? (apiData.scores.reduce((a, b) => a + b, 0) / totalDetections) * 100 
+    : 0;
 
   const reset = () => {
     setFile(null);
+    setLocalPreviewUrl(null);
     setApiData(null);
     setStatus('upload');
-    setShowDomain(false);
   };
 
   const handleUpload = (e) => {
     const selected = e.target.files[0];
     if (selected) {
       setFile(selected);
+      const url = URL.createObjectURL(selected);
+      setLocalPreviewUrl(url);
+      
+      // Get actual image dimensions to scale the bounding boxes correctly
+      const img = new Image();
+      img.onload = () => {
+        setImgDimensions({ w: img.width, h: img.height });
+      };
+      img.src = url;
+      
       setStatus('preview');
     }
   };
 
-const runAnalysis = async () => {
+  // Convert File to Base64 to send to Google Cloud
+  const toBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]); // Strip the data URL prefix
+    reader.onerror = error => reject(error);
+  });
+
+  const runAnalysis = async () => {
     setStatus('processing');
-    const formData = new FormData();
-    formData.append("file", file);
-
+    
     try {
-      const [res, nRes] = await Promise.all([
-        fetch("http://localhost:8000/api/analyze", { method: "POST", body: formData }),
-        fetch("http://localhost:8000/api/dataset_nexus")
-      ]);
-
-      const data = await res.json();
-      const nData = await nRes.json();
+      const base64String = await toBase64(file);
       
-      setApiData(data);
-      setNexusData(nData);
+      // Call your teammate's actual Google Cloud Run API
+      const response = await fetch("https://my-model-service-576296362651.us-central1.run.app/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64String })
+      });
+
+      if (!response.ok) throw new Error("Cloud Run API Connection Failed");
+      
+      const data = await response.json();
+      
+      // Ensure the data has the expected arrays even if the model found nothing
+      setApiData({
+        boxes: data.boxes || [],
+        labels: data.labels || [],
+        scores: data.scores || []
+      });
+      
       setStatus('complete');
     } catch (err) {
-      console.warn("API not found, falling back to Simulation Mode for Vercel Demo.");
-      
-      // MOCK DATA FALLBACK
-      setTimeout(() => {
-        setApiData({
-          hdCount: 14,
-          healthyCount: 38,
-          meanGray: "72.4",
-          laplacian: "3155.1",
-          histogram: Array.from({length: 16}, (_, i) => ({ bin: i*16, g: Math.random() * 100 })),
-          gcpOutputUrl: URL.createObjectURL(file) // Just show the uploaded image
-        });
-        setNexusData({
-          datasets: [
-            {id: "LILA_Larch_01", type: "Training", source: "LILA Science", damage_type: "Casebearer"},
-            {id: "Kaggle_Spruce_01", type: "Inference", source: "Kaggle", damage_type: "Bark Beetle"}
-          ],
-          domain_stats: [
-            {name: "Green Saturation", larch: 0.65, spruce: 0.42},
-            {name: "Texture Variance", larch: 0.88, spruce: 0.91}
-          ]
-        });
-        setStatus('complete');
-      }, 2000);
+      console.error(err);
+      alert("System Error: Failed to reach Google Cloud Run API. Ensure CORS is active.");
+      setStatus('preview');
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#020202] text-white font-tech selection:bg-[#10b981] selection:text-black overflow-hidden relative">
+    <div className="min-h-screen bg-[#020202] text-white font-tech selection:bg-[#10b981] selection:text-black overflow-x-hidden relative flex flex-col">
       <SolarpunkStyles />
-      <div className="fixed inset-0 solarpunk-grid opacity-40 pointer-events-none" />
-      
-      {/* BACKGROUND GLOWS */}
-      <div className="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#064e3b]/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#10b981]/10 rounded-full blur-[120px] pointer-events-none" />
+      <SolarpunkGeometricBackground />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-6 py-8 h-screen flex flex-col">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 py-8 w-full flex-grow flex flex-col">
         
         {/* NAV HEADER */}
-        <header className="flex justify-between items-center border-b border-white/10 pb-6 mb-8">
+        <header className="flex justify-between items-center border-b border-white/10 pb-6 mb-8 shrink-0">
           <div>
-            <h1 className="text-xl font-black uppercase tracking-tighter">Beetlz <span className="text-[#10b981]">Vision</span></h1>
+            <h1 className="text-2xl font-black uppercase tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">Beetlz <span className="text-[#10b981]">Vision</span></h1>
             <div className="flex items-center gap-2 mt-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
-              <span className="text-[9px] text-gray-500 uppercase tracking-[0.2em]">Engine v2.0 // Active</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse shadow-[0_0_5px_#10b981]" />
+              <span className="text-[10px] text-gray-500 uppercase tracking-[0.2em]">Engine v3.0 // GCP Hosted</span>
             </div>
           </div>
           
           <AnimatePresence>
             {status === 'complete' && (
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex gap-4">
-                <button 
-                  onClick={() => setShowDomain(!showDomain)}
-                  className="px-4 py-2 border border-[#10b981]/40 text-[#10b981] text-[10px] font-bold uppercase rounded-lg hover:bg-[#10b981]/10 transition-all flex items-center gap-2"
-                >
-                  <BarChart3 size={14} /> {showDomain ? "View Detection" : "Domain Analysis"}
-                </button>
-                <button onClick={reset} className="px-4 py-2 bg-white text-black text-[10px] font-bold uppercase rounded-lg flex items-center gap-2">
-                  <RefreshCcw size={14} /> Reset
+                <button onClick={reset} className="px-5 py-2.5 bg-white text-black hover:bg-[#10b981] hover:text-white hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 text-[10px] font-bold uppercase rounded-lg flex items-center gap-2">
+                  <RefreshCcw size={14} /> Reset System
                 </button>
               </motion.div>
             )}
@@ -213,7 +300,7 @@ const runAnalysis = async () => {
         </header>
 
         {/* MAIN STAGE */}
-        <main className="flex-grow flex flex-col justify-center relative">
+        <main className="flex-grow flex flex-col justify-center w-full">
           
           <AnimatePresence mode="wait">
             
@@ -221,19 +308,19 @@ const runAnalysis = async () => {
             {status === 'upload' && (
               <motion.div key="upload" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="max-w-2xl mx-auto w-full text-center">
                 <div className="mb-12">
-                  <h2 className="text-6xl font-black mb-4 tracking-tighter">Detect. Analyze. <span className="text-shine">Protect.</span></h2>
-                  <p className="text-gray-500 text-sm uppercase tracking-widest">Bridging Larch Casebearer training with Spruce Beetle inference.</p>
+                  <h2 className="text-6xl font-black mb-4 tracking-tighter drop-shadow-2xl">Detect. Analyze. <span className="text-shine">Protect.</span></h2>
+                  <p className="text-gray-400 text-xs uppercase tracking-widest font-tech">Holographic Telemetry & PyTorch Inference Engine.</p>
                 </div>
                 <div 
                   onClick={() => fileInputRef.current.click()}
-                  className="h-72 glass-panel border-dashed border-2 border-white/10 hover:border-[#10b981]/50 hover:bg-[#10b981]/5 transition-all group flex flex-col items-center justify-center cursor-pointer"
+                  className="h-72 glass-panel border-dashed border-2 border-white/10 hover:border-[#10b981]/50 hover:bg-[#10b981]/5 hover:shadow-[0_0_40px_rgba(16,185,129,0.15)] transition-all group flex flex-col items-center justify-center cursor-pointer"
                 >
                   <input type="file" ref={fileInputRef} className="hidden" onChange={handleUpload} />
                   <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                     <Upload className="text-gray-400 group-hover:text-[#10b981]" size={32} />
                   </div>
-                  <span className="text-lg font-bold tracking-tight">Mount Aerial Telemetry</span>
-                  <span className="text-[10px] text-gray-500 uppercase mt-2">LILA / Kaggle Image Formats</span>
+                  <span className="text-xl font-bold tracking-tight">Mount Aerial Feed</span>
+                  <span className="text-[10px] text-gray-500 uppercase mt-2 tracking-widest">Connect to Google Cloud Run Model</span>
                 </div>
               </motion.div>
             )}
@@ -241,12 +328,13 @@ const runAnalysis = async () => {
             {/* 2. PREVIEW STATE */}
             {status === 'preview' && (
               <motion.div key="preview" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="max-w-4xl mx-auto w-full">
-                <div className="glass-panel p-4 mb-8 h-[500px] flex items-center justify-center overflow-hidden">
-                  <img src={URL.createObjectURL(file)} className="max-h-full rounded-lg opacity-80" alt="Preview" />
+                <div className="glass-panel p-4 mb-8 h-[55vh] flex items-center justify-center overflow-hidden bg-black/80 relative">
+                  <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
+                  <img src={localPreviewUrl} className="max-w-full max-h-full rounded-lg opacity-80 shadow-2xl relative z-10" alt="Preview" />
                 </div>
                 <div className="flex justify-center">
-                  <button onClick={runAnalysis} className="px-12 py-4 bg-[#10b981] text-black font-black uppercase tracking-widest rounded-full hover:shadow-[0_0_40px_rgba(16,185,129,0.5)] transition-all flex items-center gap-3">
-                    <Zap fill="currentColor" size={20} /> Execute Inference
+                  <button onClick={runAnalysis} className="px-12 py-5 bg-white text-black font-black uppercase tracking-[0.2em] text-sm rounded-full hover:bg-[#10b981] hover:text-white hover:shadow-[0_0_40px_rgba(16,185,129,0.5)] transition-all duration-300 flex items-center gap-3">
+                    <Zap fill="currentColor" size={18} /> Execute Cloud Inference
                   </button>
                 </div>
               </motion.div>
@@ -255,106 +343,108 @@ const runAnalysis = async () => {
             {/* 3. PROCESSING STATE */}
             {status === 'processing' && (
               <motion.div key="processing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center">
-                <div className="w-24 h-24 border-t-2 border-[#10b981] rounded-full animate-spin mb-8" />
-                <h2 className="text-2xl font-black uppercase tracking-[0.3em]">Synthesizing Geometries</h2>
-                <p className="text-[#10b981] text-xs mt-2 animate-pulse">Extracting Cross-Dataset Texture Features...</p>
+                <div className="relative w-24 h-24 mb-8">
+                  <div className="absolute inset-0 border-t-4 border-[#10b981] rounded-full animate-spin" />
+                  <div className="absolute inset-2 border-r-4 border-white/50 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
+                </div>
+                <h2 className="text-3xl font-black uppercase tracking-[0.3em] text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]">Ping Google Cloud Run</h2>
+                <p className="text-[#10b981] text-xs mt-3 font-tech uppercase tracking-widest animate-pulse">Running PyTorch Inference Pipeline...</p>
               </motion.div>
             )}
 
-            {/* 4. COMPLETE STATE (DASHBOARD) */}
+            {/* 4. COMPLETE STATE (100% REAL DATA DASHBOARD) */}
             {status === 'complete' && (
-              <motion.div key="complete" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-12 gap-6 h-full pb-8">
+              <motion.div key="complete" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-6 w-full h-full pb-8">
                 
-                {/* LEFT: MAIN VISUALIZER */}
-                <div className="col-span-12 lg:col-span-8 h-full min-h-[500px]">
-                  <div className="glass-panel h-full relative overflow-hidden group">
-                    {showDomain ? (
-                      <div className="p-8"><DomainAnalysis nexusData={nexusData} /></div>
-                    ) : (
-                      <>
-                        <div className="absolute top-6 left-6 z-20 px-3 py-1 bg-black/80 border border-white/10 rounded text-[9px] font-bold text-[#10b981] uppercase tracking-widest flex items-center gap-2">
-                          <Activity size={12} /> Spatial Render // Active
-                        </div>
-                        <img src={apiData.gcpOutputUrl} className="w-full h-full object-cover rounded-xl" alt="Result" />
-                        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                          <div className="scan-line w-full" />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* RIGHT: TELEMETRY SIDEBAR */}
-                <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
+                {/* TOP ROW: Visualizer and Matrix */}
+                <div className="flex flex-col lg:flex-row gap-6 w-full lg:h-[500px]">
                   
-                  {/* TILE 1: SUMMARY */}
-                  <div className="glass-panel p-6 border-l-4 border-l-[#10b981]">
-                    <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <ShieldCheck size={12} /> Detection Summary
-                    </p>
-                    <div className="flex justify-between items-end">
-                      <div>
-                        <p className="text-5xl font-black">{apiData.hdCount}</p>
-                        <p className="text-[9px] text-red-500 font-bold uppercase mt-1">HD Stages</p>
+                  {/* MAIN RENDER WINDOW */}
+                  <div className="w-full lg:w-[65%] h-[400px] lg:h-full glass-panel p-4 relative overflow-hidden group border-l-4 border-l-[#10b981]">
+                      <div className="absolute top-6 left-6 z-40 px-4 py-1.5 bg-black/90 backdrop-blur-md border border-white/20 rounded-full text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-2 shadow-lg">
+                        <Activity className="text-[#10b981] animate-pulse" size={14} /> Live Spatial Detections
                       </div>
-                      <div className="text-right">
-                        <p className="text-5xl font-black text-gray-400">{apiData.healthyCount}</p>
-                        <p className="text-[9px] text-[#10b981] font-bold uppercase mt-1">Healthy</p>
+                      
+                      {/* Image and SVG Overlay Container */}
+                      <div className="relative w-full h-full bg-[#050505] rounded-xl overflow-hidden flex items-center justify-center">
+                         <div className="relative inline-block max-w-full max-h-full">
+                            {/* Base Image */}
+                            <img src={localPreviewUrl} className="max-w-full max-h-full object-contain block opacity-80" alt="Analyzed Feed" />
+                            {/* Real Hoverable Bounding Boxes drawn via SVG */}
+                            <BoundingBoxOverlay apiData={apiData} imgDimensions={imgDimensions} />
+                         </div>
                       </div>
-                    </div>
                   </div>
 
-                  {/* TILE 2: TEXTURE MATH */}
-                  <div className="glass-panel p-6 border-l-4 border-l-white/50">
-                    <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <Maximize2 size={12} /> Spatial Texture Analysis
-                    </p>
-                    <div className="space-y-4">
-                      <div className="flex justify-between">
-                        <span className="text-[10px] text-gray-400">LAPLACIAN VAR</span>
-                        <span className="font-bold">{apiData.laplacian}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[10px] text-gray-400">CHLOROPHYLL INDEX</span>
-                        <span className="font-bold text-[#10b981]">{apiData.meanGray}</span>
-                      </div>
-                    </div>
+                  {/* COST MATRIX */}
+                  <div className="w-full lg:w-[35%] h-auto lg:h-full">
+                     <CanopyInterventionMatrix totalDetections={totalDetections} />
                   </div>
-
-                  {/* TILE 3: REFLECTANCE CHART */}
-                  <div className="glass-panel p-6 flex-grow flex flex-col">
-                    <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2">
-                      <TrendingUp size={12} /> Canopy Reflectance (G-Band)
-                    </p>
-                    <div className="flex-grow flex items-end gap-1.5 h-32">
-                      {apiData.histogram.map((h, i) => {
-                        const max = Math.max(...apiData.histogram.map(x => x.g));
-                        return (
-                          <motion.div 
-                            key={i} 
-                            initial={{ height: 0 }} animate={{ height: `${(h.g / max) * 100}%` }}
-                            className="flex-grow bg-[#10b981] opacity-40 hover:opacity-100 transition-all cursor-crosshair rounded-t-sm"
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-
                 </div>
+
+                {/* BOTTOM ROW: Stats and Raw Payload terminal */}
+                <div className="flex flex-col lg:flex-row gap-6 w-full lg:h-[220px]">
+                    
+                    {/* STATS TILES */}
+                    <div className="w-full lg:w-[45%] flex gap-6">
+                       
+                       {/* Detection Summary */}
+                       <div className="glass-panel p-6 flex-1 flex flex-col justify-center border-l-4 border-l-[#10b981]">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <Crosshair size={12} /> Model Detections
+                          </p>
+                          <div className="space-y-3">
+                             <div className="flex justify-between items-end border-b border-white/10 pb-2">
+                               <span className="text-xl font-black text-white">{totalDetections}</span>
+                               <span className="text-[10px] text-gray-400 uppercase tracking-widest">Total Found</span>
+                             </div>
+                             {/* Map out specific labels dynamically returned by the model */}
+                             {Object.entries(labelCounts).map(([label, count]) => (
+                               <div key={label} className="flex justify-between items-end">
+                                 <span className="text-lg font-bold text-[#10b981]">{count}</span>
+                                 <span className="text-[10px] text-gray-400 uppercase tracking-widest">Class: {label}</span>
+                               </div>
+                             ))}
+                          </div>
+                       </div>
+
+                       {/* Confidence Gauge */}
+                       <div className="glass-panel p-6 flex-1 flex flex-col justify-center items-center text-center border-l-4 border-l-white/50 relative overflow-hidden">
+                          <ShieldCheck size={40} className="text-white/10 absolute -bottom-4 -right-4" />
+                          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 w-full text-left">Model Confidence</p>
+                          <div className="relative w-24 h-24 mt-2">
+                             <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                               <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
+                               <circle cx="50" cy="50" r="40" fill="none" stroke="#10b981" strokeWidth="8" strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * avgConfidence) / 100} className="transition-all duration-1000 ease-out" />
+                             </svg>
+                             <div className="absolute inset-0 flex items-center justify-center flex-col mt-1">
+                               <span className="text-xl font-black">{avgConfidence.toFixed(1)}%</span>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* RAW API PAYLOAD TERMINAL (Proves it's real) */}
+                    <div className="w-full lg:w-[55%] glass-panel p-5 flex flex-col border-t-4 border-t-[#10b981]">
+                        <div className="flex justify-between items-center mb-3 border-b border-white/10 pb-2">
+                           <p className="text-[10px] text-[#10b981] uppercase tracking-[0.2em] flex items-center gap-2 font-bold">
+                             <Terminal size={12} /> Live API Telemetry Stream
+                           </p>
+                           <span className="text-[8px] bg-white/10 px-2 py-1 rounded text-white">my-model-service...run.app</span>
+                        </div>
+                        <div className="flex-grow bg-black/80 rounded-lg p-4 font-tech text-[10px] text-gray-300 overflow-y-auto terminal-scroll">
+                           <pre className="whitespace-pre-wrap">
+                             {JSON.stringify(apiData, null, 2)}
+                           </pre>
+                        </div>
+                    </div>
+                </div>
+
               </motion.div>
             )}
 
           </AnimatePresence>
         </main>
-
-        {/* FOOTER */}
-        <footer className="mt-8 flex justify-between items-center text-[9px] text-gray-600 uppercase tracking-[0.3em]">
-          <span>© 2026 BEETLZ SPATIAL</span>
-          <span className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-[#10b981]" /> UofA ML ARCH</span>
-            <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-blue-500" /> VERTEX AI LINK</span>
-          </span>
-        </footer>
       </div>
     </div>
   );
