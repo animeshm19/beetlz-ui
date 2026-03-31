@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
@@ -9,6 +9,7 @@ import {
   Terminal,
   Crosshair
 } from 'lucide-react';
+import Plot from 'react-plotly.js';
 
 // STYLES & ANIMATIONS
 const SolarpunkStyles = () => (
@@ -208,6 +209,89 @@ const CanopyInterventionMatrix = ({ totalDetections }) => {
     </div>
   );
 };
+
+// COMPONENT 4: Histogram Plot
+const HistogramPlot = ({ file1, file2, title, chiSquareKey, label1, label2 }) => {
+  const [data1, setData1] = useState(null);
+  const [data2, setData2] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`/${file1}`).then(r => r.json()),
+      fetch(`/${file2}`).then(r => r.json()),
+    ])
+      .then(([d1, d2]) => {
+        setData1(d1);
+        setData2(d2);
+      })
+      .catch(err => setError(err.message));
+  }, [file1, file2]);
+
+  if (error) return <div className="glass-panel p-4 text-red-400 text-xs">Error loading: {error}</div>;
+  if (!data1 || !data2) return <div className="glass-panel p-6 flex items-center justify-center h-[400px]"><span className="text-gray-500 text-xs uppercase tracking-widest animate-pulse">Loading histogram...</span></div>;
+
+  const bins1 = data1.bins;
+  const binCenters1 = bins1.slice(0, -1).map((b, i) => 0.5 * (b + bins1[i + 1]));
+  const bins2 = data2.bins;
+  const binCenters2 = bins2.slice(0, -1).map((b, i) => 0.5 * (b + bins2[i + 1]));
+
+  const chiSquareVal = data1[chiSquareKey];
+  const fullTitle = chiSquareVal !== undefined
+    ? `${title}. Chi Square: ${chiSquareVal}`
+    : title;
+
+  return (
+    <div className="glass-panel p-4">
+      <Plot
+        data={[
+          {
+            x: binCenters1,
+            y: data1.counts,
+            type: 'bar',
+            opacity: 0.5,
+            name: label1,
+            marker: { color: '#10b981' },
+          },
+          {
+            x: binCenters2,
+            y: data2.counts,
+            type: 'bar',
+            opacity: 0.6,
+            name: label2,
+            marker: { color: '#ef4444' },
+          },
+        ]}
+        layout={{
+          title: { text: fullTitle, font: { color: '#ffffff', family: 'JetBrains Mono, monospace', size: 13 } },
+          xaxis: { title: 'Pixel Value', color: '#9ca3af', gridcolor: 'rgba(255,255,255,0.05)' },
+          yaxis: { title: 'Normalized Count', color: '#9ca3af', gridcolor: 'rgba(255,255,255,0.05)' },
+          paper_bgcolor: 'rgba(0,0,0,0)',
+          plot_bgcolor: 'rgba(0,0,0,0.3)',
+          font: { color: '#d1d5db', family: 'JetBrains Mono, monospace' },
+          legend: { font: { color: '#d1d5db' } },
+          barmode: 'overlay',
+          margin: { t: 60, b: 50, l: 60, r: 20 },
+        }}
+        config={{ responsive: true, displayModeBar: true }}
+        style={{ width: '100%', height: '400px' }}
+      />
+    </div>
+  );
+};
+
+// All histogram plot configurations (matching plots.py)
+const HIST_PLOTS = [
+  { file1: 'Spruce_Lidhem_HD_Hist.json', file2: 'Larch_HD_Hist.json', title: 'Spruce Lidhem HD vs Larch HD', chiSquareKey: 'chi_square__with_larchHD', label1: 'Spruce HD', label2: 'Larch HD' },
+  { file1: 'Spruce_Lidhem_HD_Hist.json', file2: 'Larch_LD_Hist.json', title: 'Spruce Lidhem HD vs Larch LD', chiSquareKey: 'chi_square_with_larchLD', label1: 'Spruce HD', label2: 'Larch LD' },
+  { file1: 'Spruce_Lidhem_HD_Hist.json', file2: 'Larch_H_Hist.json', title: 'Spruce Lidhem HD vs Larch Healthy', chiSquareKey: 'chi_square_with_larchHealthy', label1: 'Spruce HD', label2: 'Larch Healthy' },
+  { file1: 'Spruce_Vikem_HD_Hist.json', file2: 'Larch_HD_Hist.json', title: 'Spruce Viken HD vs Larch HD', chiSquareKey: 'chi_square_with_larchHD', label1: 'Spruce HD', label2: 'Larch HD' },
+  { file1: 'Spruce_Vikem_HD_Hist.json', file2: 'Larch_LD_Hist.json', title: 'Spruce Viken HD vs Larch LD', chiSquareKey: 'chi_square_with_larchLD', label1: 'Spruce HD', label2: 'Larch LD' },
+  { file1: 'Spruce_Vikem_HD_Hist.json', file2: 'Larch_H_Hist.json', title: 'Spruce Viken HD vs Larch Healthy', chiSquareKey: 'chi_square_with_larchHealthy', label1: 'Spruce HD', label2: 'Larch Healthy' },
+  { file1: 'Spruce_Backsjon_HD_Hist.json', file2: 'Larch_HD_Hist.json', title: 'Spruce Backsjon HD vs Larch HD', chiSquareKey: 'chi_square__with_larchHD', label1: 'Spruce HD', label2: 'Larch HD' },
+  { file1: 'Spruce_Backsjon_HD_Hist.json', file2: 'Larch_LD_Hist.json', title: 'Spruce Backsjon HD vs Larch LD', chiSquareKey: 'chi_square_with_larchLD', label1: 'Spruce HD', label2: 'Larch LD' },
+  { file1: 'Spruce_Backsjon_HD_Hist.json', file2: 'Larch_H_Hist.json', title: 'Spruce Backsjon HD vs Larch Healthy', chiSquareKey: 'chi_square_with_larchHealthy', label1: 'Spruce HD', label2: 'Larch Healthy' },
+];
 
 // MAIN APPLICATION
 export default function App() {
@@ -467,6 +551,111 @@ export default function App() {
 
           </AnimatePresence>
         </main>
+      </div>
+
+      {/* ===== SECTIONS BELOW HERO ===== */}
+      <div className="relative z-10 max-w-7xl mx-auto px-6 w-full">
+
+        {/* ANALYSIS SECTION */}
+        <section className="py-16 border-t border-white/10">
+          <h2 className="text-3xl font-black uppercase tracking-tighter mb-8">
+            Model <span className="text-[#10b981]">Analysis</span>
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+            <div className="glass-panel p-6 border-l-4 border-l-[#10b981]">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-[#10b981] mb-3">Loss Function Handling</h3>
+              <p className="text-sm text-gray-300 leading-relaxed">
+                RetinaNet uses focal loss with specific gamma and alpha values to tackle the huge class imbalance in the dataset. In contrast, YOLO automatically adjusts these values, which can lead to sub-optimal results for this specific task.
+              </p>
+            </div>
+            <div className="glass-panel p-6 border-l-4 border-l-white/50">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-3">Anchor Mechanisms</h3>
+              <p className="text-sm text-gray-300 leading-relaxed">
+                RetinaNet is an anchor-based model, whereas YOLO is an anchor-free model. YOLO's anchor-free architecture limits how many target labels it can detect within each divided grid of the original image.
+              </p>
+            </div>
+          </div>
+
+          {/* Performance Table */}
+          <div className="glass-panel p-6 border-l-4 border-l-[#10b981]">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-[#10b981] mb-4">Main Model Performance</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="border-b border-white/20">
+                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Training Phase</th>
+                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Epochs</th>
+                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Early Stopping</th>
+                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Larch (Test)</th>
+                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Spruce (Test)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-white/5">
+                    <td className="py-3 px-4 font-bold text-white">Phase 1</td>
+                    <td className="py-3 px-4 text-gray-300">50</td>
+                    <td className="py-3 px-4 text-gray-300">15</td>
+                    <td className="py-3 px-4 text-[#10b981] font-bold">0.6632</td>
+                    <td className="py-3 px-4 text-red-400 font-bold">0.0820</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3 px-4 font-bold text-white">Phase 2</td>
+                    <td className="py-3 px-4 text-gray-300">20</td>
+                    <td className="py-3 px-4 text-gray-300">10</td>
+                    <td className="py-3 px-4 text-gray-500">-</td>
+                    <td className="py-3 px-4 text-[#10b981] font-bold">0.8100</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-6 space-y-2">
+              <p className="text-xs text-gray-400 leading-relaxed">A Larch-trained detector transferred poorly to Spruce without adaptation (Spruce test ~0.08), confirming strong domain shift.</p>
+              <p className="text-xs text-gray-400 leading-relaxed">Fine-tuning that pretrained model on Spruce substantially improved performance (Spruce test ~0.81), demonstrating successful transfer via target-domain fine-tuning.</p>
+              <p className="text-xs text-gray-400 leading-relaxed">In this study, transfer required Spruce fine-tuning; zero-shot transfer was not sufficient.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* HISTOGRAM PLOTS SECTION */}
+        <section className="py-16 border-t border-white/10">
+          <h2 className="text-3xl font-black uppercase tracking-tighter mb-4">
+            Pixel Distribution <span className="text-[#10b981]">Histograms</span>
+          </h2>
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-8">Interactive chi-square comparison plots between Spruce and Larch datasets</p>
+
+          {/* Spruce Lidhem */}
+          <div className="mb-12">
+            <h3 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Spruce Lidhem HD</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {HIST_PLOTS.slice(0, 3).map((p, i) => (
+                <HistogramPlot key={i} {...p} />
+              ))}
+            </div>
+          </div>
+
+          {/* Spruce Viken */}
+          <div className="mb-12">
+            <h3 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Spruce Viken HD</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {HIST_PLOTS.slice(3, 6).map((p, i) => (
+                <HistogramPlot key={i} {...p} />
+              ))}
+            </div>
+          </div>
+
+          {/* Spruce Backsjon */}
+          <div className="mb-12">
+            <h3 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Spruce Backsjon HD</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {HIST_PLOTS.slice(6, 9).map((p, i) => (
+                <HistogramPlot key={i} {...p} />
+              ))}
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
   );
