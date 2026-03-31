@@ -4,10 +4,7 @@ import {
   Upload, 
   Zap, 
   Activity, 
-  ShieldCheck, 
   RefreshCcw,
-  Terminal,
-  Crosshair
 } from 'lucide-react';
 import Plotly from 'plotly.js-dist-min';
 
@@ -159,57 +156,6 @@ const BoundingBoxOverlay = ({ apiData, imgDimensions }) => {
   );
 };
 
-// COMPONENT 3: Real Operational Matrix
-const CanopyInterventionMatrix = ({ totalDetections }) => {
-  const [harvestPremium, setHarvestPremium] = useState(300);
-  const [qZoneRadius, setQZoneRadius] = useState(15); 
-
-  const infectionLockSavings = totalDetections * harvestPremium;
-  const preventableLossValue = totalDetections * 300; 
-
-  return (
-    <div className="glass-panel w-full h-full border-l-4 border-l-white flex flex-col p-6">
-      <div className="flex justify-between items-start mb-4">
-        <p className="text-[10px] font-tech text-gray-500 uppercase tracking-[0.2em]">Financial Cost Matrix</p>
-        <span className="text-[8px] font-tech text-emerald-300 px-2 py-0.5 rounded bg-[#10b981]/10 border border-[#10b981]/40 animate-pulse">LOCKED</span>
-      </div>
-
-      <div className="flex flex-col flex-grow justify-between">
-        <div className="space-y-5">
-          <p className="text-xs text-gray-400 font-light leading-relaxed border-b border-white/10 pb-4">Analyze operational costs of immediate containment vs baseline depreciation.</p>
-          
-          <div className="w-full">
-              <div className="flex justify-between items-center mb-2 text-[10px] font-tech text-gray-400 uppercase tracking-widest">
-                <span>Immediate Harvest Premium</span>
-                <span className="text-white font-bold">{harvestPremium} <span className="font-light">CAD</span></span>
-              </div>
-              <input type="range" min="100" max="1000" step="50" value={harvestPremium} onChange={(e) => setHarvestPremium(parseInt(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg appearance-none solarpunk-slider" />
-          </div>
-
-          <div className="w-full">
-              <div className="flex justify-between items-center mb-2 text-[10px] font-tech text-gray-400 uppercase tracking-widest">
-                <span>Q-Zone Radius</span>
-                <span className="text-white font-bold">{qZoneRadius} <span className="font-light">Meters</span></span>
-              </div>
-              <input type="range" min="5" max="50" step="1" value={qZoneRadius} onChange={(e) => setQZoneRadius(parseInt(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg appearance-none solarpunk-slider" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mt-6">
-            <div className="bg-black/60 rounded-xl p-4 border border-white/5 flex flex-col justify-center overflow-hidden">
-                <p className="text-[9px] font-tech text-gray-500 uppercase tracking-widest mb-1 truncate">Action Savings</p>
-                <h3 className="text-2xl xl:text-3xl font-black text-[#10b981] truncate" style={{textShadow: '0 0 10px rgba(16,185,129,0.4)'}}>${infectionLockSavings.toLocaleString()}</h3>
-            </div>
-            <div className="bg-black/60 rounded-xl p-4 border border-white/5 flex flex-col justify-center overflow-hidden">
-                <p className="text-[9px] font-tech text-gray-500 uppercase tracking-widest mb-1 truncate">Revenue Risk</p>
-                <h3 className="text-2xl xl:text-3xl font-black text-white truncate" style={{textShadow: '0 0 10px rgba(255,255,255,0.4)'}}>${preventableLossValue.toLocaleString()}</h3>
-            </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // COMPONENT 4: Histogram Plot
 const HistogramPlot = ({ file1, file2, title, chiSquareKey, label1, label2 }) => {
   const plotRef = useRef(null);
@@ -285,19 +231,7 @@ export default function App() {
   const [imgDimensions, setImgDimensions] = useState({ w: 0, h: 0 });
   const [apiData, setApiData] = useState(null);
   const [status, setStatus] = useState('upload'); 
-  const [apiSource, setApiSource] = useState('Local Dynamic CV'); 
   const fileInputRef = useRef(null);
-
-  const labelCounts = apiData?.labels ? apiData.labels.reduce((acc, label) => {
-    acc[label] = (acc[label] || 0) + 1;
-    return acc;
-  }, {}) : {};
-
-  const totalDetections = apiData?.labels?.length || 0;
-  
-  const avgConfidence = totalDetections > 0 
-    ? (apiData.scores.reduce((a, b) => a + b, 0) / totalDetections) * 100 
-    : 0;
 
   const reset = () => {
     setFile(null);
@@ -356,7 +290,6 @@ export default function App() {
         scores: data.scores || []
       });
       
-      setApiSource("Local Dynamic OpenCV");
       setStatus('complete');
       
     } catch (err) {
@@ -449,13 +382,10 @@ export default function App() {
 
             {/* 4. COMPLETE STATE */}
             {status === 'complete' && (
-              <motion.div key="complete" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-6 w-full h-full pb-8">
+              <motion.div key="complete" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full pb-8">
                 
-                {/* TOP ROW: Visualizer and Matrix */}
-                <div className="flex flex-col lg:flex-row gap-6 w-full lg:h-[500px]">
-                  
                   {/* MAIN RENDER WINDOW */}
-                  <div className="w-full lg:w-[65%] h-[400px] lg:h-full glass-panel p-4 relative overflow-hidden group border-l-4 border-l-[#10b981]">
+                  <div className="w-full h-[70vh] glass-panel p-4 relative overflow-hidden group border-l-4 border-l-[#10b981]">
                       <div className="absolute top-6 left-6 z-40 px-4 py-1.5 bg-black/90 backdrop-blur-md border border-white/20 rounded-full text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-2 shadow-lg">
                         <Activity className="text-[#10b981] animate-pulse" size={14} /> Live Spatial Detections
                       </div>
@@ -463,73 +393,10 @@ export default function App() {
                       <div className="relative w-full h-full bg-[#050505] rounded-xl overflow-hidden flex items-center justify-center">
                          <div className="relative inline-block max-w-full max-h-full">
                             <img src={localPreviewUrl} className="max-w-full max-h-full object-contain block opacity-80" alt="Analyzed Feed" />
-                            {/* REAL DYNAMIC BOXES RENDER HERE */}
                             <BoundingBoxOverlay apiData={apiData} imgDimensions={imgDimensions} />
                          </div>
                       </div>
                   </div>
-
-                  {/* COST MATRIX */}
-                  <div className="w-full lg:w-[35%] h-auto lg:h-full">
-                     <CanopyInterventionMatrix totalDetections={totalDetections} />
-                  </div>
-                </div>
-
-                {/* BOTTOM ROW: Stats and Raw Payload terminal */}
-                <div className="flex flex-col lg:flex-row gap-6 w-full lg:h-[220px]">
-                    
-                    {/* STATS TILES */}
-                    <div className="w-full lg:w-[45%] flex gap-6">
-                       <div className="glass-panel p-6 flex-1 flex flex-col justify-center border-l-4 border-l-[#10b981]">
-                          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <Crosshair size={12} /> Model Detections
-                          </p>
-                          <div className="space-y-3">
-                             <div className="flex justify-between items-end border-b border-white/10 pb-2">
-                               <span className="text-xl font-black text-white">{totalDetections}</span>
-                               <span className="text-[10px] text-gray-400 uppercase tracking-widest">Total Found</span>
-                             </div>
-                             {Object.entries(labelCounts).map(([label, count]) => (
-                               <div key={label} className="flex justify-between items-end">
-                                 <span className="text-lg font-bold text-[#10b981]">{count}</span>
-                                 <span className="text-[10px] text-gray-400 uppercase tracking-widest">Class: {label}</span>
-                               </div>
-                             ))}
-                          </div>
-                       </div>
-
-                       <div className="glass-panel p-6 flex-1 flex flex-col justify-center items-center text-center border-l-4 border-l-white/50 relative overflow-hidden">
-                          <ShieldCheck size={40} className="text-white/10 absolute -bottom-4 -right-4" />
-                          <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-2 w-full text-left">Average Confidence</p>
-                          <div className="relative w-24 h-24 mt-2">
-                             <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
-                               <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
-                               <circle cx="50" cy="50" r="40" fill="none" stroke="#10b981" strokeWidth="8" strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * avgConfidence) / 100} className="transition-all duration-1000 ease-out" />
-                             </svg>
-                             <div className="absolute inset-0 flex items-center justify-center flex-col mt-1">
-                               <span className="text-xl font-black">{avgConfidence.toFixed(1)}%</span>
-                             </div>
-                          </div>
-                       </div>
-                    </div>
-
-                    {/* RAW API PAYLOAD TERMINAL */}
-                    <div className="w-full lg:w-[55%] glass-panel p-5 flex flex-col border-t-4 border-t-[#10b981]">
-                        <div className="flex justify-between items-center mb-3 border-b border-white/10 pb-2">
-                           <p className="text-[10px] text-[#10b981] uppercase tracking-[0.2em] flex items-center gap-2 font-bold">
-                             <Terminal size={12} /> Live Telemetry Stream
-                           </p>
-                           <span className="text-[8px] bg-white/10 px-2 py-1 rounded text-white truncate max-w-[150px]">
-                             Source: {apiSource}
-                           </span>
-                        </div>
-                        <div className="flex-grow bg-black/80 rounded-lg p-4 font-tech text-[10px] text-gray-300 overflow-y-auto terminal-scroll">
-                           <pre className="whitespace-pre-wrap">
-                             {JSON.stringify(apiData, null, 2)}
-                           </pre>
-                        </div>
-                    </div>
-                </div>
 
               </motion.div>
             )}
