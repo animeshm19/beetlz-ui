@@ -9,7 +9,7 @@ import {
   Terminal,
   Crosshair
 } from 'lucide-react';
-import Plot from 'react-plotly.js';
+import Plotly from 'plotly.js-dist-min';
 
 // STYLES & ANIMATIONS
 const SolarpunkStyles = () => (
@@ -212,70 +212,55 @@ const CanopyInterventionMatrix = ({ totalDetections }) => {
 
 // COMPONENT 4: Histogram Plot
 const HistogramPlot = ({ file1, file2, title, chiSquareKey, label1, label2 }) => {
-  const [data1, setData1] = useState(null);
-  const [data2, setData2] = useState(null);
+  const plotRef = useRef(null);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       fetch(`/${file1}`).then(r => r.json()),
       fetch(`/${file2}`).then(r => r.json()),
     ])
-      .then(([d1, d2]) => {
-        setData1(d1);
-        setData2(d2);
+      .then(([data1, data2]) => {
+        const bins1 = data1.bins;
+        const binCenters1 = bins1.slice(0, -1).map((b, i) => 0.5 * (b + bins1[i + 1]));
+        const bins2 = data2.bins;
+        const binCenters2 = bins2.slice(0, -1).map((b, i) => 0.5 * (b + bins2[i + 1]));
+
+        const chiSquareVal = data1[chiSquareKey];
+        const fullTitle = chiSquareVal !== undefined
+          ? `${title}. Chi Square: ${chiSquareVal}`
+          : title;
+
+        if (plotRef.current) {
+          Plotly.newPlot(plotRef.current, [
+            { x: binCenters1, y: data1.counts, type: 'bar', opacity: 0.5, name: label1, marker: { color: '#10b981' } },
+            { x: binCenters2, y: data2.counts, type: 'bar', opacity: 0.6, name: label2, marker: { color: '#ef4444' } },
+          ], {
+            title: { text: fullTitle, font: { color: '#ffffff', family: 'JetBrains Mono, monospace', size: 13 } },
+            xaxis: { title: 'Pixel Value', color: '#9ca3af', gridcolor: 'rgba(255,255,255,0.05)' },
+            yaxis: { title: 'Normalized Count', color: '#9ca3af', gridcolor: 'rgba(255,255,255,0.05)' },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0.3)',
+            font: { color: '#d1d5db', family: 'JetBrains Mono, monospace' },
+            legend: { font: { color: '#d1d5db' } },
+            barmode: 'overlay',
+            margin: { t: 60, b: 50, l: 60, r: 20 },
+          }, { responsive: true, displayModeBar: true });
+        }
+        setLoading(false);
       })
-      .catch(err => setError(err.message));
-  }, [file1, file2]);
+      .catch(err => { setError(err.message); setLoading(false); });
+
+    return () => { if (plotRef.current) Plotly.purge(plotRef.current); };
+  }, [file1, file2, title, chiSquareKey, label1, label2]);
 
   if (error) return <div className="glass-panel p-4 text-red-400 text-xs">Error loading: {error}</div>;
-  if (!data1 || !data2) return <div className="glass-panel p-6 flex items-center justify-center h-[400px]"><span className="text-gray-500 text-xs uppercase tracking-widest animate-pulse">Loading histogram...</span></div>;
-
-  const bins1 = data1.bins;
-  const binCenters1 = bins1.slice(0, -1).map((b, i) => 0.5 * (b + bins1[i + 1]));
-  const bins2 = data2.bins;
-  const binCenters2 = bins2.slice(0, -1).map((b, i) => 0.5 * (b + bins2[i + 1]));
-
-  const chiSquareVal = data1[chiSquareKey];
-  const fullTitle = chiSquareVal !== undefined
-    ? `${title}. Chi Square: ${chiSquareVal}`
-    : title;
 
   return (
     <div className="glass-panel p-4">
-      <Plot
-        data={[
-          {
-            x: binCenters1,
-            y: data1.counts,
-            type: 'bar',
-            opacity: 0.5,
-            name: label1,
-            marker: { color: '#10b981' },
-          },
-          {
-            x: binCenters2,
-            y: data2.counts,
-            type: 'bar',
-            opacity: 0.6,
-            name: label2,
-            marker: { color: '#ef4444' },
-          },
-        ]}
-        layout={{
-          title: { text: fullTitle, font: { color: '#ffffff', family: 'JetBrains Mono, monospace', size: 13 } },
-          xaxis: { title: 'Pixel Value', color: '#9ca3af', gridcolor: 'rgba(255,255,255,0.05)' },
-          yaxis: { title: 'Normalized Count', color: '#9ca3af', gridcolor: 'rgba(255,255,255,0.05)' },
-          paper_bgcolor: 'rgba(0,0,0,0)',
-          plot_bgcolor: 'rgba(0,0,0,0.3)',
-          font: { color: '#d1d5db', family: 'JetBrains Mono, monospace' },
-          legend: { font: { color: '#d1d5db' } },
-          barmode: 'overlay',
-          margin: { t: 60, b: 50, l: 60, r: 20 },
-        }}
-        config={{ responsive: true, displayModeBar: true }}
-        style={{ width: '100%', height: '400px' }}
-      />
+      {loading && <div className="flex items-center justify-center h-[500px]"><span className="text-gray-500 text-xs uppercase tracking-widest animate-pulse">Loading histogram...</span></div>}
+      <div ref={plotRef} style={{ width: '100%', height: '500px', display: loading ? 'none' : 'block' }} />
     </div>
   );
 };
@@ -554,32 +539,166 @@ export default function App() {
       </div>
 
       {/* ===== SECTIONS BELOW HERO ===== */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 w-full">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pb-16">
 
-        {/* ANALYSIS SECTION */}
+        {/* ===== 1. DESCRIPTIVE ANALYSIS ===== */}
         <section className="py-16 border-t border-white/10">
-          <h2 className="text-3xl font-black uppercase tracking-tighter mb-8">
-            Model <span className="text-[#10b981]">Analysis</span>
-          </h2>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-[10px] font-tech text-[#10b981] px-3 py-1 rounded-full bg-[#10b981]/10 border border-[#10b981]/30 uppercase tracking-widest">01</span>
+            <h2 className="text-3xl font-black uppercase tracking-tighter">
+              Descriptive <span className="text-[#10b981]">Analysis</span>
+            </h2>
+          </div>
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-8 ml-14">What does the data look like?</p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-            <div className="glass-panel p-6 border-l-4 border-l-[#10b981]">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-[#10b981] mb-3">Loss Function Handling</h3>
-              <p className="text-sm text-gray-300 leading-relaxed">
-                RetinaNet uses focal loss with specific gamma and alpha values to tackle the huge class imbalance in the dataset. In contrast, YOLO automatically adjusts these values, which can lead to sub-optimal results for this specific task.
-              </p>
-            </div>
-            <div className="glass-panel p-6 border-l-4 border-l-white/50">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-3">Anchor Mechanisms</h3>
-              <p className="text-sm text-gray-300 leading-relaxed">
-                RetinaNet is an anchor-based model, whereas YOLO is an anchor-free model. YOLO's anchor-free architecture limits how many target labels it can detect within each divided grid of the original image.
-              </p>
+          {/* Data Augmentation */}
+          <div className="glass-panel p-6 border-l-4 border-l-[#10b981] mb-6">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-[#10b981] mb-4">Data Augmentations Applied</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-black/40 rounded-lg p-4 border border-white/5">
+                <p className="text-xs text-white font-bold mb-1">Flip</p>
+                <p className="text-xs text-gray-400">Horizontal and vertical (free win)</p>
+              </div>
+              <div className="bg-black/40 rounded-lg p-4 border border-white/5">
+                <p className="text-xs text-white font-bold mb-1">Rotation</p>
+                <p className="text-xs text-gray-400">&plusmn;90&deg;, &plusmn;180&deg; (safe for aerial imagery)</p>
+              </div>
+              <div className="bg-black/40 rounded-lg p-4 border border-white/5">
+                <p className="text-xs text-white font-bold mb-1">Color Jitter</p>
+                <p className="text-xs text-gray-400">Brightness and contrast only (mild ranges)</p>
+              </div>
+              <div className="bg-black/40 rounded-lg p-4 border border-white/5">
+                <p className="text-xs text-white font-bold mb-1">HD-Centric Crop & Resize</p>
+                <p className="text-xs text-gray-400">Crop HD box + padding, resize, and use as a new training sample</p>
+              </div>
             </div>
           </div>
 
-          {/* Performance Table */}
-          <div className="glass-panel p-6 border-l-4 border-l-[#10b981]">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-[#10b981] mb-4">Main Model Performance</h3>
+          {/* Baseline Results */}
+          <div className="glass-panel p-6 border-l-4 border-l-white/50 mb-6">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-4">Baseline Results (Spruce-Only Training)</h3>
+            <p className="text-xs text-gray-400 mb-4 leading-relaxed">The baseline models were trained and tested exclusively on Spruce data to establish a performance ceiling before attempting cross-species transfer.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="border-b border-white/20">
+                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Model</th>
+                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Test F2 Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-white/5">
+                    <td className="py-3 px-4 font-bold text-white">YOLO</td>
+                    <td className="py-3 px-4 text-yellow-400 font-bold">0.75</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3 px-4 font-bold text-white">ResNet + RetinaNet</td>
+                    <td className="py-3 px-4 text-[#10b981] font-bold">0.86</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Pixel Distribution Histograms */}
+          <div className="mb-6">
+            <div className="glass-panel p-6 border-l-4 border-l-[#10b981] mb-6">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-[#10b981] mb-2">Pixel Intensity Distributions</h3>
+              <p className="text-xs text-gray-400 leading-relaxed">These histograms compare the pixel intensity distributions between Spruce (damaged) and Larch samples at different damage levels. The overlap (or lack thereof) between distributions reveals how visually similar or different the damage signatures are across tree species &mdash; a key factor in whether transfer learning can succeed.</p>
+            </div>
+
+            <div className="mb-10">
+              <h4 className="text-base font-bold text-white mb-4 border-b border-white/10 pb-2">Spruce Lidhem HD</h4>
+              <div className="flex flex-col gap-6">
+                {HIST_PLOTS.slice(0, 3).map((p, i) => (
+                  <HistogramPlot key={i} {...p} />
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-10">
+              <h4 className="text-base font-bold text-white mb-4 border-b border-white/10 pb-2">Spruce Viken HD</h4>
+              <div className="flex flex-col gap-6">
+                {HIST_PLOTS.slice(3, 6).map((p, i) => (
+                  <HistogramPlot key={i} {...p} />
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-10">
+              <h4 className="text-base font-bold text-white mb-4 border-b border-white/10 pb-2">Spruce Backsjon HD</h4>
+              <div className="flex flex-col gap-6">
+                {HIST_PLOTS.slice(6, 9).map((p, i) => (
+                  <HistogramPlot key={i} {...p} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ===== 2. DIAGNOSTIC ANALYSIS ===== */}
+        <section className="py-16 border-t border-white/10">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-[10px] font-tech text-[#10b981] px-3 py-1 rounded-full bg-[#10b981]/10 border border-[#10b981]/30 uppercase tracking-widest">02</span>
+            <h2 className="text-3xl font-black uppercase tracking-tighter">
+              Diagnostic <span className="text-[#10b981]">Analysis</span>
+            </h2>
+          </div>
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-8 ml-14">Why do the models perform the way they do?</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="glass-panel p-6 border-l-4 border-l-[#10b981]">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-[#10b981] mb-3">Why RetinaNet Outperforms YOLO</h3>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-white font-bold mb-1">Loss Function Handling</p>
+                  <p className="text-sm text-gray-300 leading-relaxed">
+                    RetinaNet uses focal loss with specific gamma and alpha values to tackle the huge class imbalance in the dataset. In contrast, YOLO automatically adjusts these values, which can lead to sub-optimal results for this specific task.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-white font-bold mb-1">Anchor Mechanisms</p>
+                  <p className="text-sm text-gray-300 leading-relaxed">
+                    RetinaNet is an anchor-based model, whereas YOLO is an anchor-free model. YOLO's anchor-free architecture limits how many target labels it can detect within each divided grid of the original image.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-panel p-6 border-l-4 border-l-white/50">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-white mb-3">Why Zero-Shot Transfer Failed</h3>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-white font-bold mb-1">Domain Shift</p>
+                  <p className="text-sm text-gray-300 leading-relaxed">
+                    The chi-square tests in the histograms above quantify the statistical distance between Spruce and Larch pixel distributions. Higher chi-square values indicate greater visual dissimilarity between species, explaining why a model trained solely on Larch scored only 0.08 F2 on Spruce without fine-tuning.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-white font-bold mb-1">Species-Specific Damage Signatures</p>
+                  <p className="text-sm text-gray-300 leading-relaxed">
+                    Bark beetle damage manifests differently across tree species in aerial imagery. The pixel intensity patterns of heavily damaged (HD), lightly damaged (LD), and healthy trees vary between Larch and Spruce, requiring the model to adapt its learned features.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ===== 3. PREDICTIVE / PRESCRIPTIVE ANALYSIS ===== */}
+        <section className="py-16 border-t border-white/10">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-[10px] font-tech text-[#10b981] px-3 py-1 rounded-full bg-[#10b981]/10 border border-[#10b981]/30 uppercase tracking-widest">03</span>
+            <h2 className="text-3xl font-black uppercase tracking-tighter">
+              Predictive & Prescriptive <span className="text-[#10b981]">Analysis</span>
+            </h2>
+          </div>
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-8 ml-14">What do the results tell us, and what should be done?</p>
+
+          {/* Transfer Learning Performance Table */}
+          <div className="glass-panel p-6 border-l-4 border-l-[#10b981] mb-8">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-[#10b981] mb-4">Transfer Learning Performance (Larch &rarr; Spruce)</h3>
+            <p className="text-xs text-gray-400 mb-4 leading-relaxed">The main model was trained on Larch data (Phase 1), then fine-tuned on Spruce (Phase 2), and tested on Spruce to measure transfer learning effectiveness.</p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead>
@@ -587,71 +706,108 @@ export default function App() {
                     <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Training Phase</th>
                     <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Epochs</th>
                     <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Early Stopping</th>
-                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Larch (Test)</th>
-                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Spruce (Test)</th>
+                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Larch (Test F2)</th>
+                    <th className="py-3 px-4 text-[10px] uppercase tracking-widest text-gray-400">Spruce (Test F2)</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b border-white/5">
-                    <td className="py-3 px-4 font-bold text-white">Phase 1</td>
+                    <td className="py-3 px-4 font-bold text-white">Phase 1 &mdash; Train on Larch</td>
                     <td className="py-3 px-4 text-gray-300">50</td>
                     <td className="py-3 px-4 text-gray-300">15</td>
                     <td className="py-3 px-4 text-[#10b981] font-bold">0.6632</td>
                     <td className="py-3 px-4 text-red-400 font-bold">0.0820</td>
                   </tr>
                   <tr>
-                    <td className="py-3 px-4 font-bold text-white">Phase 2</td>
+                    <td className="py-3 px-4 font-bold text-white">Phase 2 &mdash; Fine-tune on Spruce</td>
                     <td className="py-3 px-4 text-gray-300">20</td>
                     <td className="py-3 px-4 text-gray-300">10</td>
-                    <td className="py-3 px-4 text-gray-500">-</td>
+                    <td className="py-3 px-4 text-gray-500">&mdash;</td>
                     <td className="py-3 px-4 text-[#10b981] font-bold">0.8100</td>
                   </tr>
                 </tbody>
               </table>
             </div>
+          </div>
 
-            <div className="mt-6 space-y-2">
-              <p className="text-xs text-gray-400 leading-relaxed">A Larch-trained detector transferred poorly to Spruce without adaptation (Spruce test ~0.08), confirming strong domain shift.</p>
-              <p className="text-xs text-gray-400 leading-relaxed">Fine-tuning that pretrained model on Spruce substantially improved performance (Spruce test ~0.81), demonstrating successful transfer via target-domain fine-tuning.</p>
-              <p className="text-xs text-gray-400 leading-relaxed">In this study, transfer required Spruce fine-tuning; zero-shot transfer was not sufficient.</p>
+          {/* Key Findings */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="glass-panel p-6 border-t-4 border-t-red-400 text-center">
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-3">Zero-Shot Transfer</p>
+              <p className="text-3xl font-black text-red-400 mb-2">0.08</p>
+              <p className="text-xs text-gray-400">Larch model tested directly on Spruce &mdash; near-total failure</p>
+            </div>
+            <div className="glass-panel p-6 border-t-4 border-t-[#10b981] text-center">
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-3">After Fine-Tuning</p>
+              <p className="text-3xl font-black text-[#10b981] mb-2">0.81</p>
+              <p className="text-xs text-gray-400">Larch pretrained + Spruce fine-tuned &mdash; strong recovery</p>
+            </div>
+            <div className="glass-panel p-6 border-t-4 border-t-white/50 text-center">
+              <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-3">Baseline (Spruce-Only)</p>
+              <p className="text-3xl font-black text-white mb-2">0.86</p>
+              <p className="text-xs text-gray-400">ResNet + RetinaNet trained only on Spruce</p>
+            </div>
+          </div>
+
+          {/* Prescriptive Takeaways */}
+          <div className="glass-panel p-6 border-l-4 border-l-[#10b981]">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-[#10b981] mb-4">Prescriptive Takeaways</h3>
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <span className="text-[#10b981] font-bold text-sm mt-0.5">1.</span>
+                <p className="text-sm text-gray-300 leading-relaxed"><span className="text-white font-bold">Zero-shot cross-species transfer does not work.</span> A Larch-trained detector scored only 0.08 F2 on Spruce, confirming that damage signatures are too species-specific for direct transfer.</p>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-[#10b981] font-bold text-sm mt-0.5">2.</span>
+                <p className="text-sm text-gray-300 leading-relaxed"><span className="text-white font-bold">Fine-tuning recovers most of the performance.</span> After fine-tuning on Spruce, the transfer model reached 0.81 F2 &mdash; closing 94% of the gap to the Spruce-only baseline of 0.86.</p>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-[#10b981] font-bold text-sm mt-0.5">3.</span>
+                <p className="text-sm text-gray-300 leading-relaxed"><span className="text-white font-bold">For new tree species, use a two-phase approach:</span> pretrain on a data-rich species, then fine-tune on the target species with even a modest amount of labeled data.</p>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* HISTOGRAM PLOTS SECTION */}
+        {/* ===== 4. DOMAIN ANSWERS FOR GENERAL AUDIENCE ===== */}
         <section className="py-16 border-t border-white/10">
-          <h2 className="text-3xl font-black uppercase tracking-tighter mb-4">
-            Pixel Distribution <span className="text-[#10b981]">Histograms</span>
-          </h2>
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-8">Interactive chi-square comparison plots between Spruce and Larch datasets</p>
-
-          {/* Spruce Lidhem */}
-          <div className="mb-12">
-            <h3 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Spruce Lidhem HD</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {HIST_PLOTS.slice(0, 3).map((p, i) => (
-                <HistogramPlot key={i} {...p} />
-              ))}
-            </div>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-[10px] font-tech text-[#10b981] px-3 py-1 rounded-full bg-[#10b981]/10 border border-[#10b981]/30 uppercase tracking-widest">04</span>
+            <h2 className="text-3xl font-black uppercase tracking-tighter">
+              What This <span className="text-[#10b981]">Means</span>
+            </h2>
           </div>
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-8 ml-14">Plain-language summary for forestry stakeholders</p>
 
-          {/* Spruce Viken */}
-          <div className="mb-12">
-            <h3 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Spruce Viken HD</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {HIST_PLOTS.slice(3, 6).map((p, i) => (
-                <HistogramPlot key={i} {...p} />
-              ))}
-            </div>
-          </div>
+          <div className="glass-panel p-8 border-l-4 border-l-[#10b981]">
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">The Problem</h3>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  Bark beetle infestations are devastating forests across species. Detecting damage early from drone imagery is critical, but training AI models requires large amounts of labeled data for each tree species &mdash; a costly and time-consuming process.
+                </p>
+              </div>
 
-          {/* Spruce Backsjon */}
-          <div className="mb-12">
-            <h3 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Spruce Backsjon HD</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {HIST_PLOTS.slice(6, 9).map((p, i) => (
-                <HistogramPlot key={i} {...p} />
-              ))}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">What We Tested</h3>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  Can a beetle-damage detector trained on one tree species (Larch) be adapted to detect damage on a different species (Spruce) &mdash; reducing the need to start from scratch each time?
+                </p>
+              </div>
+
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">What We Found</h3>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  Simply applying the Larch model to Spruce images did not work &mdash; the model missed almost all damage. However, after a short fine-tuning phase using Spruce examples, the model recovered to <span className="text-[#10b981] font-bold">94% of the accuracy</span> achieved by a model trained entirely on Spruce. This means that expertise learned from one species can be successfully transferred to another with minimal additional effort.
+                </p>
+              </div>
+
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">Why It Matters</h3>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  For forestry managers monitoring multiple tree species across large areas, this means new detectors can be deployed faster and cheaper. Instead of collecting thousands of labeled images for each new species, managers can leverage existing models and fine-tune with a smaller set of new data &mdash; accelerating response times to beetle outbreaks.
+                </p>
+              </div>
             </div>
           </div>
         </section>
