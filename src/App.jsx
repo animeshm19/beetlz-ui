@@ -54,16 +54,14 @@ const SolarpunkGeometricBackground = () => (
     </div>
 );
 
-
-
 // COMPONENT 2: Dynamic Bounding Box Overlay Engine (Premium Fix)
 const BoundingBoxOverlay = ({ apiData, imgDimensions }) => {
   const [hoveredBox, setHoveredBox] = useState(null);
 
-  if (!apiData || !apiData.boxes || !imgDimensions || imgDimensions.w === 0) return null;
+  if (!apiData || !apiData.boxes || apiData.boxes.length === 0 || !imgDimensions || imgDimensions.w === 0) return null;
 
   return (
-    <svg viewBox={`0 0 ${imgDimensions.w} ${imgDimensions.h}`} className="absolute inset-0 w-full h-full object-contain z-30">
+    <svg viewBox={`0 0 ${imgDimensions.w} ${imgDimensions.h}`} className="absolute inset-0 w-full h-full object-contain z-30 pointer-events-auto">
       {apiData.boxes.map((box, i) => {
         const isHovered = hoveredBox === i;
         const label = apiData.labels[i] || "object";
@@ -78,16 +76,13 @@ const BoundingBoxOverlay = ({ apiData, imgDimensions }) => {
         const height = y2 - y1;
 
         // --- PREMIUM LABEL MATH ---
-        // Calculate font size relative to image height
         const fontSize = imgDimensions.h * 0.022; 
         const labelText = `[${label.toUpperCase()}] CONF: ${(score * 100).toFixed(1)}%`;
         
-        // Estimate text width (monospace fonts are ~0.6x their height in width)
         const paddingX = imgDimensions.w * 0.01;
         const estimatedTextWidth = (labelText.length * (fontSize * 0.62)) + (paddingX * 2);
         const bgHeight = imgDimensions.h * 0.04;
 
-        // Prevent the label from rendering outside the top or right edges of the image
         const labelX = Math.min(x1, imgDimensions.w - estimatedTextWidth);
         const labelY = Math.max(y1 - bgHeight - (imgDimensions.h * 0.01), 0);
 
@@ -122,7 +117,6 @@ const BoundingBoxOverlay = ({ apiData, imgDimensions }) => {
             {/* Premium Hover Tag */}
             {isHovered && (
               <g>
-                {/* Dark Glass Background */}
                 <rect 
                   x={labelX} 
                   y={labelY} 
@@ -131,11 +125,9 @@ const BoundingBoxOverlay = ({ apiData, imgDimensions }) => {
                   fill="rgba(10, 10, 10, 0.9)" 
                   stroke={boxColor}
                   strokeWidth={imgDimensions.w * 0.0015}
-                  rx={imgDimensions.w * 0.004} // Premium rounded corners
+                  rx={imgDimensions.w * 0.004}
                   filter={`url(#glow-${i})`}
                 />
-                
-                {/* Single Combined Text Element using <tspan> to guarantee perfect spacing */}
                 <text 
                   x={labelX + paddingX} 
                   y={labelY + (bgHeight * 0.72)} 
@@ -211,7 +203,7 @@ const HistogramPlot = ({ file1, file2, title, chiSquareKey, label1, label2 }) =>
   );
 };
 
-// All histogram plot configurations (matching plots.py)
+// All histogram plot configurations
 const HIST_PLOTS = [
   { file1: 'Spruce_Lidhem_HD_Hist.json', file2: 'Larch_HD_Hist.json', title: 'Spruce Lidhem HD vs Larch HD', chiSquareKey: 'chi_square__with_larchHD', label1: 'Spruce HD', label2: 'Larch HD' },
   { file1: 'Spruce_Lidhem_HD_Hist.json', file2: 'Larch_LD_Hist.json', title: 'Spruce Lidhem HD vs Larch LD', chiSquareKey: 'chi_square_with_larchLD', label1: 'Spruce HD', label2: 'Larch LD' },
@@ -224,7 +216,11 @@ const HIST_PLOTS = [
   { file1: 'Spruce_Backsjon_HD_Hist.json', file2: 'Larch_H_Hist.json', title: 'Spruce Backsjon HD vs Larch Healthy', chiSquareKey: 'chi_square_with_larchHealthy', label1: 'Spruce HD', label2: 'Larch Healthy' },
 ];
 
+// ---------------------------------------------------------------------------
 // MAIN APPLICATION
+// ---------------------------------------------------------------------------
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 export default function App() {
   const [file, setFile] = useState(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState(null);
@@ -270,8 +266,7 @@ export default function App() {
     try {
       const base64String = await toBase64(file);
       
-      // Hit the Cloud Python Server for Dynamic Computer Vision
-      const response = await fetch("https://my-model-service-576296362651.us-central1.run.app/predict", {
+      const response = await fetch(`${API_URL}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64String })
@@ -284,17 +279,27 @@ export default function App() {
       
       const data = await response.json();
       
+      // Handle whichever output format the API returns
+      let processedImageUrl = null;
+      if (data.processed_image || data.image) {
+        const base64Data = data.processed_image || data.image;
+        processedImageUrl = base64Data.startsWith('data:') 
+          ? base64Data 
+          : `data:image/jpeg;base64,${base64Data}`;
+      }
+
       setApiData({
         boxes: data.boxes || [],
         labels: data.labels || [],
-        scores: data.scores || []
+        scores: data.scores || [],
+        processedImage: processedImageUrl
       });
       
       setStatus('complete');
       
     } catch (err) {
       console.error("API FAILED:", err);
-      alert(`API Connection Failed: ${err.message}. Make sure your Python server is running on port 8000.`);
+      alert(`API Connection Failed: ${err.message}.\n\nMake sure VITE_API_URL is set correctly and your backend is running.`);
       setStatus('preview');
     }
   };
@@ -343,7 +348,7 @@ export default function App() {
                   onClick={() => fileInputRef.current.click()}
                   className="h-72 glass-panel border-dashed border-2 border-white/10 hover:border-[#10b981]/50 hover:bg-[#10b981]/5 hover:shadow-[0_0_40px_rgba(16,185,129,0.15)] transition-all group flex flex-col items-center justify-center cursor-pointer"
                 >
-                  <input type="file" ref={fileInputRef} className="hidden" onChange={handleUpload} />
+                  <input type="file" ref={fileInputRef} className="hidden" onChange={handleUpload} accept="image/jpeg,image/png,image/tiff" />
                   <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                     <Upload className="text-gray-400 group-hover:text-[#10b981]" size={32} />
                   </div>
@@ -391,9 +396,17 @@ export default function App() {
                       </div>
                       
                       <div className="relative w-full h-full bg-[#050505] rounded-xl overflow-hidden flex items-center justify-center">
+                         {/* Shows annotated image from API, falls back to original with SVG overlay */}
                          <div className="relative inline-block max-w-full max-h-full">
-                            <img src={localPreviewUrl} className="max-w-full max-h-full object-contain block opacity-80" alt="Analyzed Feed" />
-                            <BoundingBoxOverlay apiData={apiData} imgDimensions={imgDimensions} />
+                            <img 
+                              src={apiData?.processedImage ? apiData.processedImage : localPreviewUrl} 
+                              className="max-w-full max-h-full object-contain block opacity-80" 
+                              alt="Analyzed Feed" 
+                            />
+                            {/* Only renders SVG boxes when no processed image returned */}
+                            {!apiData?.processedImage && (
+                              <BoundingBoxOverlay apiData={apiData} imgDimensions={imgDimensions} />
+                            )}
                          </div>
                       </div>
                   </div>
