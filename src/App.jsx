@@ -279,7 +279,6 @@ export default function App() {
       
       const data = await response.json();
       
-      // Handle whichever output format the API returns
       let processedImageUrl = null;
       if (data.processed_image || data.image) {
         const base64Data = data.processed_image || data.image;
@@ -303,7 +302,7 @@ export default function App() {
       setStatus('preview');
     }
   };
-
+  
   return (
     <div className="min-h-screen bg-[#020202] text-white font-tech selection:bg-[#10b981] selection:text-black overflow-x-hidden relative flex flex-col">
       <SolarpunkStyles />

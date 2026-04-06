@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+beetlz-api/.venv/
+*.pth
+beetlz-api/venv/
+*.pth
