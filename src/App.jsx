@@ -276,24 +276,12 @@ export default function App() {
         const errText = await response.text();
         throw new Error(`API Error: ${response.status} - ${errText}`);
       }
-      
-      const data = await response.json();
-      
-      let processedImageUrl = null;
-      if (data.processed_image || data.image) {
-        const base64Data = data.processed_image || data.image;
-        processedImageUrl = base64Data.startsWith('data:') 
-          ? base64Data 
-          : `data:image/jpeg;base64,${base64Data}`;
-      }
 
-      setApiData({
-        boxes: data.boxes || [],
-        labels: data.labels || [],
-        scores: data.scores || [],
-        processedImage: processedImageUrl
-      });
-      
+      // API returns a raw image (binary), convert to object URL
+      const blob = await response.blob();
+      const processedImageUrl = URL.createObjectURL(blob);
+
+      setApiData({ processedImage: processedImageUrl });
       setStatus('complete');
       
     } catch (err) {
@@ -395,18 +383,11 @@ export default function App() {
                       </div>
                       
                       <div className="relative w-full h-full bg-[#050505] rounded-xl overflow-hidden flex items-center justify-center">
-                         {/* Shows annotated image from API, falls back to original with SVG overlay */}
-                         <div className="relative inline-block max-w-full max-h-full">
-                            <img 
-                              src={apiData?.processedImage ? apiData.processedImage : localPreviewUrl} 
-                              className="max-w-full max-h-full object-contain block opacity-80" 
-                              alt="Analyzed Feed" 
-                            />
-                            {/* Only renders SVG boxes when no processed image returned */}
-                            {!apiData?.processedImage && (
-                              <BoundingBoxOverlay apiData={apiData} imgDimensions={imgDimensions} />
-                            )}
-                         </div>
+                         <img 
+                           src={apiData?.processedImage ? apiData.processedImage : localPreviewUrl} 
+                           className="max-w-full max-h-full w-auto h-auto object-contain block opacity-90" 
+                           alt="Analyzed Feed" 
+                         />
                       </div>
                   </div>
 

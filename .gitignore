@@ -26,3 +26,4 @@ beetlz-api/.venv/
 *.pth
 beetlz-api/venv/
 *.pth
+.env
